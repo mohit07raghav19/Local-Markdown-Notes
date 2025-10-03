@@ -425,21 +425,38 @@ exportBtn &&
       const zip = new JSZip();
       zip.file(`${filename}.md`, content);
       const imagesFolder = zip.folder("images");
-      for (const [id, img] of Object.entries(images)) {
-        if (!img?.dataUrl) continue;
-        const parts = img.dataUrl.split(",");
-        const base64 = parts.length > 1 ? parts[1] : parts[0];
-        imagesFolder.file(img.filename, base64, { base64: true });
+
+      function dataURLtoUint8Array(dataURL) {
+        const parts = dataURL.split(",");
+        if (parts.length < 2) throw new Error("Invalid dataURL");
+        const b64 = parts[1];
+        const bin = atob(b64);
+        const len = bin.length;
+        const arr = new Uint8Array(len);
+        for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+        return arr;
       }
+
+      for (const [id, img] of Object.entries(images)) {
+        if (!img || !img.dataUrl) continue;
+        try {
+          const bytes = dataURLtoUint8Array(img.dataUrl);
+          imagesFolder.file(img.filename, bytes);
+        } catch (err) {
+          console.warn("Skipping bad image", img && img.filename, err);
+        }
+      }
+
       updateStatus("Generating ZIP file...");
       const zipBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(zipBlob);
+
       if (chrome && chrome.downloads && chrome.downloads.download) {
         chrome.downloads.download(
           { url, filename: `${filename}.zip`, saveAs: true },
           (id) => {
             if (chrome.runtime.lastError) {
-              console.error(chrome.runtime.lastError);
+              console.error("download API error", chrome.runtime.lastError);
               const a = document.createElement("a");
               a.href = url;
               a.download = `${filename}.zip`;
@@ -460,8 +477,8 @@ exportBtn &&
         URL.revokeObjectURL(url);
         updateStatus("Exported");
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error("Export error", err);
       updateStatus("Error creating ZIP file");
     }
   });

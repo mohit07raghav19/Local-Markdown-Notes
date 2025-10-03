@@ -415,26 +415,7 @@ Start typing your notes...
       <div id="imagesExpandableList" class="images-expand-list"></div>
     </div>
 
-    <script>
-      // Update filename preview and zip preview based on input
-      function updateFilenamePreview() {
-        const input = document.getElementById("filename");
-        const name = input && input.value ? input.value.trim() : "notes";
-        const md = name + ".md";
-        const zip = name + ".zip";
-        const mdEl = document.getElementById("previewFilename");
-        const zipEl = document.getElementById("previewZip");
-        if (mdEl) mdEl.textContent = md;
-        if (zipEl) zipEl.textContent = zip;
-      }
-      document.addEventListener("DOMContentLoaded", () => {
-        const input = document.getElementById("filename");
-        if (input) {
-          input.addEventListener("input", updateFilenamePreview);
-        }
-        updateFilenamePreview();
-      });
-    </script>
+    <!-- Inline scripts removed for CSP compatibility. Filename preview and other UI initialization moved into sidepanel.js -->
 
     <script src="lib/jszip.min.js"></script>
     <script src="sidepanel.js"></script>
