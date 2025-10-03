@@ -102,6 +102,7 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        position: relative; /* anchor for absolute slash palette */
       }
 
       #editor {
@@ -208,6 +209,31 @@
       .hidden {
         display: none;
       }
+
+      /* Slash palette styles */
+      .slash-palette {
+        position: absolute;
+        left: 16px;
+        top: 56px;
+        background: #252526;
+        border: 1px solid #3e3e42;
+        color: #d4d4d4;
+        padding: 8px;
+        border-radius: 6px;
+        min-width: 220px;
+        max-width: calc(100% - 32px);
+        z-index: 30;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      }
+      .slash-item {
+        padding: 6px 8px;
+        cursor: pointer;
+        font-size: 13px;
+        border-radius: 4px;
+      }
+      .slash-item:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
     </style>
   </head>
   <body>
@@ -313,18 +339,14 @@
     <div class="editor-container">
       <textarea
         id="editor"
-        placeholder="# Local Markdown Notes
-— Features
-- Sidebar Markdown editor (auto-save)
-- Capture screenshots (Alt/Option+O) 
-— YouTube timestamps auto-attached
-- Paste images directly from clipboard
-- Preview rendered markdown (toggle)
-- Export as ZIP (.md + images/)
+        placeholder="# Local Markdown Notes&#10;&#10;— Features&#10;- Sidebar Markdown editor (auto-save)&#10;- Capture screenshots (Alt/Option+O)&#10;- YouTube timestamps auto-attached&#10;- Paste images directly from clipboard&#10;- Preview rendered markdown (toggle)&#10;- Export as ZIP (.md + images/)&#10;&#10;Start typing your notes..."></textarea>
 
-Start typing your notes...
-
-         "></textarea>
+      <!-- Slash command palette (hidden until activated) -->
+      <div
+        id="slashPalette"
+        class="slash-palette hidden"
+        role="listbox"
+        aria-hidden="true"></div>
     </div>
 
     <div id="preview" class="preview hidden"></div>

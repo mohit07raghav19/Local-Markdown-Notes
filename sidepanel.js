@@ -12,6 +12,256 @@ let images = {};
 let imageCounter = 0;
 let isPreviewMode = false;
 
+// --- Snippet palette data (small subset from your vscode snippets file)
+const SNIPPETS = [
+  { prefix: "/h1", body: "# ${1:Title}", description: "Insert H1 heading" },
+  { prefix: "/h2", body: "## ${1:Subtitle}", description: "Insert H2 heading" },
+  {
+    prefix: "/h3",
+    body: "### ${1:Subheading}",
+    description: "Insert H3 heading",
+  },
+  {
+    prefix: "/bullet",
+    body: "- ${1:item}",
+    description: "Insert bullet list item",
+  },
+  {
+    prefix: "/num",
+    body: "1. ${1:item}",
+    description: "Insert numbered list item",
+  },
+  {
+    prefix: "/code",
+    body: "``` ${1:language}\n${2:code}\n```",
+    description: "Insert fenced code block",
+  },
+  {
+    prefix: "/image",
+    body: "![${1:alt text}](${2:path/to/image})",
+    description: "Insert image",
+  },
+  {
+    prefix: "/todo",
+    body: "- [ ] ${1:Task}",
+    description: "Insert task checkbox",
+  },
+  {
+    prefix: "/table",
+    body: "| ${1:Header 1} | ${2:Header 2} | ${3:Header 3} |\n|--------------|--------------|--------------|\n| ${4:Row 1 Col 1} | ${5:Row 1 Col 2} | ${6:Row 1 Col 3} |",
+    description: "Insert table",
+  },
+];
+
+// Palette DOM
+const slashPalette = document.getElementById("slashPalette");
+let paletteVisible = false;
+let paletteItems = [];
+let paletteIndex = -1;
+
+function showPalette(filter) {
+  if (!slashPalette) return;
+  const q = (filter || "").toLowerCase();
+  paletteItems = SNIPPETS.filter(
+    (s) =>
+      s.prefix.toLowerCase().startsWith(q) ||
+      s.description.toLowerCase().indexOf(q) !== -1
+  );
+  if (paletteItems.length === 0) {
+    hidePalette();
+    return;
+  }
+  slashPalette.innerHTML = "";
+  paletteItems.forEach((it, idx) => {
+    const el = document.createElement("div");
+    el.className = "slash-item";
+    el.setAttribute("role", "option");
+    el.dataset.index = String(idx);
+    el.innerHTML = `<strong>${it.prefix}</strong> <span style="color:#9a9a9a; margin-left:8px">${it.description}</span>`;
+    el.addEventListener("click", () => {
+      applySnippet(it);
+      hidePalette();
+      editor.focus();
+    });
+    slashPalette.appendChild(el);
+  });
+  paletteIndex = 0;
+  highlightPalette();
+  slashPalette.classList.remove("hidden");
+  slashPalette.setAttribute("aria-hidden", "false");
+  paletteVisible = true;
+}
+
+function hidePalette() {
+  if (!slashPalette) return;
+  slashPalette.classList.add("hidden");
+  slashPalette.setAttribute("aria-hidden", "true");
+  slashPalette.innerHTML = "";
+  paletteVisible = false;
+  paletteIndex = -1;
+}
+
+function highlightPalette() {
+  if (!slashPalette) return;
+  const nodes = slashPalette.querySelectorAll(".slash-item");
+  nodes.forEach(
+    (n, i) =>
+      (n.style.background = i === paletteIndex ? "rgba(255,255,255,0.04)" : "")
+  );
+}
+
+function applySnippet(snippet) {
+  // replace the last slash trigger in editor with the snippet body
+  const cursor = editor.selectionStart || 0;
+  const before = editor.value.substring(0, cursor);
+  // find last slash token start
+  const m = before.match(/(\/[^\s]*)$/);
+  let replaceStart = cursor;
+  if (m) replaceStart = cursor - m[0].length;
+  const after = editor.value.substring(editor.selectionEnd || cursor);
+
+  // Process placeholders like ${1:default}
+  const body = snippet.body;
+  const placeholderRegex = /\$\{(\d+):?([^}]*)\}/g;
+  let out = "";
+  let lastIndex = 0;
+  const placeholders = []; // {num, start, end}
+  let match;
+  while ((match = placeholderRegex.exec(body)) !== null) {
+    const idx = match.index;
+    const num = parseInt(match[1], 10);
+    const text = match[2] || "";
+    out += body.slice(lastIndex, idx) + text;
+    const startPos = out.length - text.length;
+    const endPos = out.length;
+    placeholders.push({ num, start: startPos, end: endPos });
+    lastIndex = idx + match[0].length;
+  }
+  out += body.slice(lastIndex);
+
+  // Insert the processed snippet
+  editor.value = editor.value.substring(0, replaceStart) + out + after;
+
+  // Focus and select first placeholder (num=1) if present, else place caret at end
+  const first = placeholders.find((p) => p.num === 1) || placeholders[0];
+  if (first) {
+    const selStart = replaceStart + first.start;
+    const selEnd = replaceStart + first.end;
+    editor.focus();
+    editor.selectionStart = selStart;
+    editor.selectionEnd = selEnd;
+  } else {
+    const newPos = replaceStart + out.length;
+    editor.focus();
+    editor.selectionStart = editor.selectionEnd = newPos;
+  }
+  chrome.storage.local.set({ noteContent: editor.value });
+}
+
+// Continue lists on Enter: bullets, numbered lists, and todos
+editor.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  // If palette is visible, let that handler manage Enter
+  if (paletteVisible) return;
+  try {
+    const val = editor.value;
+    const selStart = editor.selectionStart;
+    // find current line boundaries
+    const lineStart = val.lastIndexOf("\n", selStart - 1) + 1;
+    let lineEnd = val.indexOf("\n", selStart);
+    if (lineEnd === -1) lineEnd = val.length;
+    const fullLine = val.slice(lineStart, lineEnd);
+
+    // Matches
+    const ordered = fullLine.match(/^(\s*)(\d+)\.\s+/);
+    const checkbox = fullLine.match(/^(\s*[-+*]\s+\[[ xX]\]\s+)/);
+    const unordered = fullLine.match(/^(\s*[-+*]\s+)/);
+
+    if (ordered || checkbox || unordered) {
+      e.preventDefault();
+      // If the line contains only the marker (nothing after it), break the list
+      const marker =
+        (ordered && ordered[0]) ||
+        (checkbox && checkbox[1]) ||
+        (unordered && unordered[0]);
+      const afterMarker = fullLine.slice(marker.length).trim();
+      if (afterMarker.length === 0) {
+        // remove the marker from this line and insert a newline (end list)
+        const beforeLine = val.slice(0, lineStart);
+        const afterLine = val.slice(lineEnd);
+        // create a single newline (move to next empty line)
+        editor.value = beforeLine + "\n" + afterLine;
+        const newPos = beforeLine.length + 1;
+        editor.selectionStart = editor.selectionEnd = newPos;
+        chrome.storage.local.set({ noteContent: editor.value });
+        return;
+      }
+
+      // Otherwise, continue the list
+      let insert = "\n";
+      if (ordered) {
+        const indent = ordered[1] || "";
+        const num = parseInt(ordered[2], 10);
+        const next = num + 1;
+        insert += `${indent}${next}. `;
+      } else if (checkbox) {
+        insert += checkbox[1];
+      } else if (unordered) {
+        insert += unordered[1];
+      }
+
+      // Insert and set caret
+      const before = val.slice(0, selStart);
+      const after = val.slice(editor.selectionEnd || selStart);
+      editor.value = before + insert + after;
+      const newCaret = before.length + insert.length;
+      editor.selectionStart = editor.selectionEnd = newCaret;
+      chrome.storage.local.set({ noteContent: editor.value });
+    }
+  } catch (err) {
+    console.error("list continuation error", err);
+  }
+});
+
+// editor key handling for slash palette
+editor.addEventListener("input", (e) => {
+  try {
+    const cursor = editor.selectionStart || 0;
+    const before = editor.value.substring(0, cursor);
+    const m = before.match(/(\/[\w-]*)$/);
+    if (m) {
+      showPalette(m[0]);
+    } else if (paletteVisible) hidePalette();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+editor.addEventListener("keydown", (e) => {
+  if (!paletteVisible) return;
+  const nodes = slashPalette.querySelectorAll(".slash-item");
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    paletteIndex = Math.min(paletteIndex + 1, nodes.length - 1);
+    highlightPalette();
+    nodes[paletteIndex].scrollIntoView({ block: "nearest" });
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    paletteIndex = Math.max(paletteIndex - 1, 0);
+    highlightPalette();
+    nodes[paletteIndex].scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (paletteItems[paletteIndex]) {
+      applySnippet(paletteItems[paletteIndex]);
+      hidePalette();
+    }
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    hidePalette();
+  }
+});
+
 // --- Storage load ---
 function loadState() {
   chrome.storage.local.get(
@@ -391,7 +641,12 @@ function renderPreview() {
       /\[(.+?)\]\((.+?)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
     )
-    .replace(/`(.+?)`/g, "<code>$1</code>");
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/^\s*[-+*] (.+)/gm, "<ul><li>$1</li></ul>") // Unordered list
+    .replace(/^\d+\.\s+(.+)/gm, "<ol><li>$1</li></ol>"); // Ordered list
+
+  // Merge consecutive <ul> or <ol> tags
+  html = html.replace(/<\/ul>\s*<ul>/g, "").replace(/<\/ol>\s*<ol>/g, "");
   const paragraphs = html.split(/\n\s*\n/).map((p) => p.replace(/\n/g, "<br>"));
   preview.innerHTML = paragraphs.map((p) => `<p>${p}</p>`).join("");
 }
