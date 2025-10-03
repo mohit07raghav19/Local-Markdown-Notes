@@ -23,58 +23,70 @@ chrome.commands.onCommand.addListener(async (command) => {
       // Try content script capture (video element) first
       let dataUrl = null;
       try {
-        chrome.tabs.sendMessage(
-          tab.id,
-          { action: "getTimestampAndCapture" },
-          (resp) => {
-            if (chrome.runtime.lastError) {
-              console.warn(
-                "background sendMessage error:",
-                chrome.runtime.lastError.message
-              );
-              // fallback to full capture
-              chrome.tabs.captureVisibleTab(
-                tab.windowId,
-                { format: "png" },
-                (img) => {
-                  if (!chrome.runtime.lastError) {
-                    // send to all side panel clients
-                    chrome.runtime.sendMessage({
-                      action: "commandScreenshot",
-                      dataUrl: img,
-                      title: tab.title,
-                      url: tab.url,
-                    });
-                  }
+        const trySend = () =>
+          new Promise((resolve) => {
+            try {
+              chrome.tabs.sendMessage(
+                tab.id,
+                { action: "getTimestampAndCapture" },
+                (resp) => {
+                  if (chrome.runtime.lastError)
+                    resolve({ error: chrome.runtime.lastError });
+                  else resolve({ resp });
                 }
               );
-            } else if (resp && resp.videoScreenshot) {
-              chrome.runtime.sendMessage({
-                action: "commandScreenshot",
-                dataUrl: resp.videoScreenshot,
-                title: tab.title,
-                url: tab.url,
-                timestamp: resp.timestamp,
+            } catch (e) {
+              resolve({ error: e });
+            }
+          });
+
+        let out = await trySend();
+        if (out && out.error) {
+          // attempt to inject content script and retry
+          if (chrome.scripting && chrome.scripting.executeScript) {
+            try {
+              await new Promise((res, rej) => {
+                chrome.scripting.executeScript(
+                  { target: { tabId: tab.id }, files: ["content.js"] },
+                  () => {
+                    if (chrome.runtime.lastError) rej(chrome.runtime.lastError);
+                    else res();
+                  }
+                );
               });
-            } else {
-              // fallback to full capture
-              chrome.tabs.captureVisibleTab(
-                tab.windowId,
-                { format: "png" },
-                (img) => {
-                  if (!chrome.runtime.lastError) {
-                    chrome.runtime.sendMessage({
-                      action: "commandScreenshot",
-                      dataUrl: img,
-                      title: tab.title,
-                      url: tab.url,
-                    });
-                  }
-                }
-              );
+              out = await trySend();
+            } catch (e) {
+              console.warn("scripting.executeScript failed:", e);
+              out = { error: e };
             }
           }
-        );
+        }
+
+        if (out && out.resp && out.resp.videoScreenshot) {
+          chrome.runtime.sendMessage({
+            action: "commandScreenshot",
+            dataUrl: out.resp.videoScreenshot,
+            title: tab.title,
+            url: tab.url,
+            timestamp: out.resp.timestamp,
+          });
+        } else {
+          // fallback to full capture
+          chrome.tabs.captureVisibleTab(
+            tab.windowId,
+            { format: "png" },
+            (img) => {
+              if (!chrome.runtime.lastError) {
+                chrome.runtime.sendMessage({
+                  action: "commandScreenshot",
+                  dataUrl: img,
+                  title: tab.title,
+                  url: tab.url,
+                });
+              }
+            }
+          );
+        }
       } catch (err) {
         console.warn("background capture error:", err);
       }

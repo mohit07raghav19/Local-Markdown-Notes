@@ -71,29 +71,54 @@ async function captureScreenshot() {
     let dataUrl = null;
 
     if (tab.url && tab.url.includes("youtube.com/watch")) {
-      // Wrap sendMessage in a promise and tolerate failures (content script may not be injected)
-      const result = await new Promise((resolve) => {
-        try {
-          chrome.tabs.sendMessage(
-            tab.id,
-            { action: "getTimestampAndCapture" },
-            (resp) => {
-              if (chrome.runtime.lastError) {
-                console.warn(
-                  "sendMessage warning:",
-                  chrome.runtime.lastError.message
-                );
-                resolve(null);
-              } else {
-                resolve(resp);
-              }
+      // Try sendMessage; if no response, inject content script and retry so we can capture only the video element
+      const result = await (async () => {
+        // helper to send message and await response or error
+        const trySend = () =>
+          new Promise((resolve) => {
+            try {
+              chrome.tabs.sendMessage(
+                tab.id,
+                { action: "getTimestampAndCapture" },
+                (resp) => {
+                  if (chrome.runtime.lastError) {
+                    resolve({ error: chrome.runtime.lastError });
+                  } else {
+                    resolve({ resp });
+                  }
+                }
+              );
+            } catch (err) {
+              resolve({ error: err });
             }
-          );
-        } catch (err) {
-          console.warn("sendMessage exception:", err);
-          resolve(null);
+          });
+
+        let out = await trySend();
+        if (out && out.error) {
+          // attempt to inject content script and retry
+          if (chrome.scripting && chrome.scripting.executeScript) {
+            try {
+              await new Promise((res, rej) => {
+                chrome.scripting.executeScript(
+                  { target: { tabId: tab.id }, files: ["content.js"] },
+                  () => {
+                    if (chrome.runtime.lastError) rej(chrome.runtime.lastError);
+                    else res();
+                  }
+                );
+              });
+              out = await trySend();
+              if (out && out.error) return null;
+              return out.resp || null;
+            } catch (e) {
+              console.warn("scripting.executeScript failed:", e);
+              return null;
+            }
+          }
+          return null;
         }
-      });
+        return out.resp || null;
+      })();
       timestamp = result?.timestamp;
 
       if (timestamp) {
