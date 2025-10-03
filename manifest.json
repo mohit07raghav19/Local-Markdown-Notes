@@ -27,6 +27,15 @@
       "js": ["content.js"]
     }
   ],
+  "commands": {
+    "capture-screenshot": {
+      "suggested_key": {
+        "default": "Alt+O",
+        "mac": "Alt+O"
+      },
+      "description": "Capture screenshot of video or page"
+    }
+  },
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",

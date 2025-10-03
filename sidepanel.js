@@ -42,25 +42,57 @@ filenameInput.addEventListener("input", () => {
   chrome.storage.local.set({ filename: filenameInput.value });
 });
 
-// Screenshot functionality
-screenshotBtn.addEventListener("click", async () => {
+// Screenshot functionality - extracted to reusable function so shortcuts can call it
+async function captureScreenshot() {
   try {
     updateStatus("Capturing screenshot...");
+    console.debug("captureScreenshot: start");
 
-    // Get active tab
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
+    // Get active tab (wrap callback API to be safe)
+    const tabs = await new Promise((resolve, reject) => {
+      try {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(tabs);
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
     });
+    const tab = tabs && tabs.length ? tabs[0] : null;
+    if (!tab) throw new Error("No active tab found");
 
     // Get YouTube timestamp and video element position if on YouTube
     let timestamp = null;
     let videoUrl = tab.url;
     let dataUrl = null;
 
-    if (tab.url.includes("youtube.com/watch")) {
-      const result = await chrome.tabs.sendMessage(tab.id, {
-        action: "getTimestampAndCapture",
+    if (tab.url && tab.url.includes("youtube.com/watch")) {
+      // Wrap sendMessage in a promise and tolerate failures (content script may not be injected)
+      const result = await new Promise((resolve) => {
+        try {
+          chrome.tabs.sendMessage(
+            tab.id,
+            { action: "getTimestampAndCapture" },
+            (resp) => {
+              if (chrome.runtime.lastError) {
+                console.warn(
+                  "sendMessage warning:",
+                  chrome.runtime.lastError.message
+                );
+                resolve(null);
+              } else {
+                resolve(resp);
+              }
+            }
+          );
+        } catch (err) {
+          console.warn("sendMessage exception:", err);
+          resolve(null);
+        }
       });
       timestamp = result?.timestamp;
 
@@ -78,7 +110,20 @@ screenshotBtn.addEventListener("click", async () => {
 
     // Fallback to full page screenshot if not YouTube or cropping failed
     if (!dataUrl) {
-      dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+      // captureVisibleTab uses a callback-style API; wrap it
+      dataUrl = await new Promise((resolve, reject) => {
+        try {
+          chrome.tabs.captureVisibleTab(null, { format: "png" }, (img) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(img);
+            }
+          });
+        } catch (err) {
+          reject(err);
+        }
+      });
     }
 
     // Store image with proper filename
@@ -117,6 +162,119 @@ screenshotBtn.addEventListener("click", async () => {
   } catch (error) {
     console.error("Screenshot error:", error);
     updateStatus("Error capturing screenshot");
+  }
+}
+
+// Hook screenshot button to the function
+screenshotBtn.addEventListener("click", captureScreenshot);
+
+// Keyboard shortcut: Option(Alt) + O triggers screenshot
+document.addEventListener("keydown", (e) => {
+  // Avoid triggering while modifier keys other than Alt are used with text fields like input combos
+  const isMacOption = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+  if (isMacOption && e.key && e.key.toLowerCase() === "o") {
+    // Prevent default so Option+O doesn't type special char in editor
+    e.preventDefault();
+    captureScreenshot();
+  }
+});
+
+// Paste handler: if clipboard contains image(s), store them and insert markdown references
+editor.addEventListener("paste", (event) => {
+  try {
+    const items = (event.clipboardData || window.clipboardData).items;
+    if (!items) return;
+
+    const imageItems = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item && item.type && item.type.indexOf("image") !== -1) {
+        imageItems.push(item);
+      }
+    }
+
+    if (imageItems.length === 0) return; // let default paste happen for non-image content
+
+    // Prevent default paste of image as unsupported text
+    event.preventDefault();
+
+    // Process each image in clipboard
+    for (let i = 0; i < imageItems.length; i++) {
+      const item = imageItems[i];
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const dataUrl = e.target.result;
+
+        // Store image
+        const imageId = `pasted_${imageCounter}`;
+        const imageName = `${imageId}.png`;
+        imageCounter++;
+        images[imageId] = {
+          dataUrl: dataUrl,
+          filename: imageName,
+        };
+        chrome.storage.local.set({ noteImages: images });
+
+        // Insert markdown at cursor
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const text = editor.value;
+        const markdown = `\n\n![Pasted Image](images/${imageName})\n\n`;
+        editor.value =
+          text.substring(0, start) + markdown + text.substring(end);
+        editor.focus();
+        editor.selectionStart = editor.selectionEnd = start + markdown.length;
+        chrome.storage.local.set({ noteContent: editor.value });
+        updateStatus("Pasted image saved to notes");
+      };
+      reader.readAsDataURL(file);
+    }
+  } catch (err) {
+    console.error("Paste handler error:", err);
+  }
+});
+
+// Handle screenshots sent from background (keyboard command)
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "commandScreenshot") {
+    try {
+      const dataUrl = request.dataUrl;
+      if (!dataUrl) return;
+
+      const imageId = `cmd_${imageCounter}`;
+      const imageName = `${imageId}.png`;
+      imageCounter++;
+      images[imageId] = { dataUrl: dataUrl, filename: imageName };
+      chrome.storage.local.set({ noteImages: images });
+
+      // Insert markdown with optional timestamp/url info
+      let markdown = `\n\n![Screenshot](images/${imageName})`;
+      if (request.timestamp) {
+        const ts = formatTimestamp(request.timestamp);
+        const urlObj = new URL(request.url);
+        urlObj.searchParams.set("t", Math.floor(request.timestamp) + "s");
+        markdown += `\n**Source:** [${
+          request.title
+        } at ${ts}](${urlObj.toString()})`;
+      } else if (request.url) {
+        markdown += `\n**Source:** [${request.title}](${request.url})`;
+      }
+      markdown += `\n\n`;
+
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const text = editor.value;
+      editor.value = text.substring(0, start) + markdown + text.substring(end);
+      editor.focus();
+      editor.selectionStart = editor.selectionEnd = start + markdown.length;
+      chrome.storage.local.set({ noteContent: editor.value });
+      updateStatus("Screenshot inserted (keyboard)");
+    } catch (err) {
+      console.error("commandScreenshot handler error:", err);
+    }
   }
 });
 
