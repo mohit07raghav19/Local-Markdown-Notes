@@ -5,7 +5,135 @@
 const ImageManager = (() => {
   // Private variables
   let images = {};
-  let imageCounter = 0;
+  // imageCounter removed in favor of deterministic unique ids based on source/timestamp
+
+  // Recent event dedupe: avoid processing the same capture twice (e.g., runtime message + document event)
+  const recentEventKeys = {};
+  const RECENT_EVENT_TTL = 2000; // ms
+
+  function cleanupRecentEventKeys() {
+    const now = Date.now();
+    for (const k of Object.keys(recentEventKeys)) {
+      if (now - recentEventKeys[k] > RECENT_EVENT_TTL)
+        delete recentEventKeys[k];
+    }
+  }
+
+  function isRecentEvent(key) {
+    cleanupRecentEventKeys();
+    return !!recentEventKeys[key];
+  }
+
+  function markEventKey(key) {
+    recentEventKeys[key] = Date.now();
+  }
+
+  // Recent inserted ids guard (avoid double inserting the same image reference)
+  const recentInserts = {};
+  function cleanupRecentInserts() {
+    const now = Date.now();
+    for (const id of Object.keys(recentInserts)) {
+      if (now - recentInserts[id] > RECENT_EVENT_TTL) delete recentInserts[id];
+    }
+  }
+
+  function wasRecentlyInserted(id) {
+    cleanupRecentInserts();
+    return !!recentInserts[id];
+  }
+
+  function markRecentlyInserted(id) {
+    recentInserts[id] = Date.now();
+  }
+
+  function makeEventKey(dataUrl, sourceUrl, timestamp) {
+    if (dataUrl) {
+      // Use a prefix of dataUrl to keep the key short but reasonably unique
+      return `d:${dataUrl.slice(0, 200)}:${dataUrl.length}`;
+    }
+    return `s:${sanitizeForId(sourceUrl || "")}:${timestamp || "0"}`;
+  }
+
+  /**
+   * Sanitize a string to be safe for use in an id/filename
+   * Replaces unsafe characters with underscores and trims repeated underscores
+   */
+  function sanitizeForId(str) {
+    return String(str)
+      .toLowerCase()
+      .replace(/https?:\/\//, "")
+      .replace(/[^a-z0-9-_\.]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  /**
+   * Try to extract a YouTube video id from a URL object or string.
+   * Supports: youtube.com/watch?v=ID and youtu.be/ID
+   */
+  function getYouTubeId(url) {
+    try {
+      const u = typeof url === "string" ? new URL(url) : url;
+      const host = (u.hostname || "").toLowerCase();
+      if (host.includes("youtube.com") || host.includes("www.youtube.com")) {
+        const v = u.searchParams.get("v");
+        if (v) return v;
+      }
+      if (host === "youtu.be" || host.endsWith(".youtu.be")) {
+        const p = (u.pathname || "").replace(/^\//, "");
+        if (p) return p.split("/")[0];
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * Ensure the generated id is unique within the images object.
+   * If a collision occurs, append a numeric suffix.
+   */
+  function ensureUniqueId(baseId) {
+    let id = baseId;
+    let counter = 1;
+    while (images[id]) {
+      id = `${baseId}_${counter}`;
+      counter++;
+    }
+    return id;
+  }
+
+  /**
+   * Try to find an existing image matching the given parameters.
+   * We consider it a match if the dataUrl is identical, or if both sourceUrl
+   * and formatted timestamp match. Returns the existing id or null.
+   */
+  function findExistingImage(dataUrl, sourceUrl, formattedTime) {
+    for (const [id, img] of Object.entries(images)) {
+      if (dataUrl && img.dataUrl === dataUrl) return id;
+      if (
+        sourceUrl &&
+        img.sourceUrl === sourceUrl &&
+        formattedTime &&
+        img.timestamp === formattedTime
+      ) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Find an existing image whose id/filename base matches baseId.
+   * This catches cases where a base id and a suffixed id (_1) may exist.
+   */
+  function findExistingByBase(baseId) {
+    for (const id of Object.keys(images)) {
+      if (id === baseId) return id;
+      if (id.startsWith(baseId + "_")) return id;
+    }
+    return null;
+  }
 
   /**
    * Initialize the image manager module
@@ -29,12 +157,7 @@ const ImageManager = (() => {
     document.addEventListener("imagesLoaded", (event) => {
       if (event.detail && event.detail.images) {
         images = event.detail.images;
-        // Find highest image counter
-        imageCounter = Object.keys(images).reduce((max, key) => {
-          const num = parseInt(key.replace("img", ""));
-          return num > max ? num : max;
-        }, 0);
-
+        // Use the loaded images as-is. Filename/ID scheme now encodes source/timestamps
         renderImageList();
       }
     });
@@ -42,7 +165,6 @@ const ImageManager = (() => {
     // Listen for clear events
     document.addEventListener("clearEditor", () => {
       images = {};
-      imageCounter = 0;
       renderImageList();
       document.dispatchEvent(
         new CustomEvent("saveImages", {
@@ -60,6 +182,7 @@ const ImageManager = (() => {
 
     // Listen for screenshot captured event from background.js
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      console.debug("[ImageManager] runtime.onMessage received:", message);
       if (message.action === "commandScreenshot" && message.dataUrl) {
         addImage(
           message.dataUrl,
@@ -72,6 +195,10 @@ const ImageManager = (() => {
 
     // Listen for image capture events from Screenshots module
     document.addEventListener("imageCapture", (event) => {
+      console.debug(
+        "[ImageManager] document.imageCapture event:",
+        event && event.detail
+      );
       if (event.detail && event.detail.dataUrl) {
         addImage(
           event.detail.dataUrl,
@@ -145,11 +272,20 @@ const ImageManager = (() => {
    * @param {number} timestamp - Optional timestamp for videos
    */
   function addImage(dataUrl, title = "", sourceUrl = null, timestamp = null) {
-    imageCounter++;
-    const id = `img${imageCounter}`;
-    const filename = `${id}.png`;
+    console.debug("[ImageManager] addImage called", {
+      dataUrlLength: dataUrl && dataUrl.length,
+      title,
+      sourceUrl,
+      timestamp,
+      time: Date.now(),
+    });
+    // event dedupe: ignore near-duplicate events
+    const eventKey = makeEventKey(dataUrl, sourceUrl, timestamp);
+    if (isRecentEvent(eventKey)) {
+      console.debug("[ImageManager] Ignoring recent duplicate event", eventKey);
+      return;
+    }
     const date = new Date().toISOString();
-
     // Format timestamp if provided (for YouTube videos)
     let formattedTime = "";
     if (timestamp) {
@@ -157,6 +293,80 @@ const ImageManager = (() => {
       const seconds = Math.floor(timestamp % 60);
       formattedTime = `${minutes}:${seconds.toString().padStart(2, "0")}`;
     }
+
+    // Build a base name for the image id using sourceUrl and/or timestamp.
+    let baseId = "img";
+    if (sourceUrl) {
+      try {
+        const url = new URL(sourceUrl);
+        // If it's a YouTube link, use the video id which is compact and unique
+        const ytId = getYouTubeId(url);
+        const timePart = timestamp ? String(timestamp) : String(Date.now());
+        if (ytId) {
+          baseId = `img_${ytId}_${timePart}`;
+        } else {
+          // Use hostname and pathname as part of the id for non-YouTube URLs
+          const host = sanitizeForId(url.hostname);
+          const path = sanitizeForId(url.pathname || "");
+          baseId = `img_${host}${path ? "_" + path : ""}_${timePart}`;
+        }
+      } catch (e) {
+        // If URL parsing fails, fallback to sanitized sourceUrl
+        baseId = `img_${sanitizeForId(sourceUrl)}_${timestamp || Date.now()}`;
+      }
+    } else {
+      // For pasted images or images without a source, use 'pasted' and current timestamp
+      baseId = `img_pasted_${Date.now()}`;
+    }
+
+    // If this image already exists (same dataUrl, same source+timestamp, or same base id), reuse it
+    let existingId = findExistingImage(dataUrl, sourceUrl, formattedTime);
+    if (!existingId) existingId = findExistingByBase(baseId);
+
+    if (existingId) {
+      const existing = images[existingId];
+      // Update metadata if missing details (e.g., attach timestamp if we now have it)
+      let updated = false;
+      if (!existing.dataUrl && dataUrl) {
+        existing.dataUrl = dataUrl;
+        updated = true;
+      }
+      if ((!existing.timestamp || existing.timestamp === "") && formattedTime) {
+        existing.timestamp = formattedTime;
+        updated = true;
+      }
+      if ((!existing.sourceUrl || existing.sourceUrl === null) && sourceUrl) {
+        existing.sourceUrl = sourceUrl;
+        updated = true;
+      }
+      if (updated) {
+        document.dispatchEvent(
+          new CustomEvent("saveImages", { detail: { images: images } })
+        );
+        renderImageList();
+      }
+
+      // Insert a reference to the existing image and avoid creating a duplicate
+      if (!wasRecentlyInserted(existing.id)) {
+        insertImageReference(existing.id, existing.filename);
+        markRecentlyInserted(existing.id);
+        DOMUtils.updateStatus(
+          `Image reference inserted: ${existing.filename}`,
+          1500
+        );
+      } else {
+        DOMUtils.updateStatus(
+          `Image already inserted recently: ${existing.filename}`,
+          900
+        );
+      }
+      // mark the event so near-duplicates are ignored
+      markEventKey(eventKey);
+      return;
+    }
+
+    const id = ensureUniqueId(baseId);
+    const filename = `${id}.png`;
 
     // Create image metadata
     images[id] = {
@@ -179,10 +389,16 @@ const ImageManager = (() => {
     // Update image list in UI
     renderImageList();
 
-    // Insert image reference in editor
-    insertImageReference(id, filename);
-
-    DOMUtils.updateStatus(`Image added: ${filename}`);
+    // Insert image reference in editor (guard against rapid duplicate insertions)
+    if (!wasRecentlyInserted(id)) {
+      insertImageReference(id, filename);
+      markRecentlyInserted(id);
+      DOMUtils.updateStatus(`Image added: ${filename}`);
+    } else {
+      DOMUtils.updateStatus(`Image added previously: ${filename}`, 900);
+    }
+    // mark the event so near-duplicates are ignored
+    markEventKey(eventKey);
   }
 
   /**
@@ -191,6 +407,12 @@ const ImageManager = (() => {
    * @param {string} filename - The image filename
    */
   function insertImageReference(id, filename) {
+    console.debug("[ImageManager] insertImageReference called", {
+      id,
+      filename,
+      time: Date.now(),
+      stack: new Error().stack,
+    });
     const editor = document.getElementById("editor");
     if (!editor) return;
 
