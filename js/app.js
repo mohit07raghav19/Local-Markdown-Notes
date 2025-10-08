@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ImageManager.init();
   Screenshots.init();
   SlashPalette.init();
+  ShortcutHelper.init();
 
   console.log("Local Markdown Notes extension initialized");
 });

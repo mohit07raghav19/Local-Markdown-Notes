@@ -248,6 +248,25 @@ Inspired by [Askify](https://askify.app/) and AI note-taking tools:
    - Open Chrome → Extensions → Enable Developer Mode
    - Click "Load unpacked" and select the extension folder
 
+### ⌨️ Setting Up Keyboard Shortcuts (Important for Chrome Users)
+
+**Chrome requires manual keyboard shortcut configuration**:
+
+1. Navigate to `chrome://extensions/shortcuts` in your browser
+2. Find "Local Markdown Notes" in the list
+3. Click in the shortcut field next to "Capture screenshot of video or page"
+4. Press your desired key combination (recommended: **Option+O** / **Alt+O**)
+5. The shortcut is now active!
+
+**Why is this needed?**
+Chrome extensions cannot programmatically set keyboard shortcuts for security reasons. On Chrome (unlike Brave), Alt+letter combinations are used for special characters by default, so manual configuration ensures the shortcut works properly.
+
+**Alternative shortcuts if Option+O doesn't work**:
+
+- `Command+Shift+O` (Mac) / `Ctrl+Shift+O` (Windows/Linux)
+- `Command+Shift+S` (Mac) / `Ctrl+Shift+S` (Windows/Linux)
+- Any other combination you prefer!
+
 ### For Developers
 
 ```bash
