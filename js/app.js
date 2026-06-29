@@ -18,6 +18,13 @@ document.addEventListener("DOMContentLoaded", () => {
   Screenshots.init();
   SlashPalette.init();
   ShortcutHelper.init();
+  VimMode.init();
+
+  // Programmatically focus the editor on startup
+  const editor = document.getElementById("editor");
+  if (editor) {
+    editor.focus();
+  }
 
   console.log("Local Markdown Notes extension initialized");
 });

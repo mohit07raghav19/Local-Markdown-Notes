@@ -146,8 +146,9 @@
 
     <div id="preview" class="preview hidden"></div>
 
-    <div class="status">
+    <div class="status" style="display: flex; justify-content: space-between; align-items: center;">
       <span id="statusText">Ready</span>
+      <span id="vimModeBadge" class="vim-badge badge-insert">-- INSERT --</span>
     </div>
 
     <!-- Compact Images control below status -->
@@ -178,6 +179,7 @@
 
     <!-- External libraries -->
     <script src="lib/jszip.min.js"></script>
+    <script src="lib/vim.js"></script>
 
     <!-- Utility modules -->
     <script src="js/utils/dom.js"></script>
@@ -193,6 +195,7 @@
     <script src="js/modules/screenshots.js"></script>
     <script src="js/modules/slashPalette.js"></script>
     <script src="js/modules/shortcutHelper.js"></script>
+    <script src="js/modules/vimMode.js"></script>
 
     <!-- Main application -->
     <script src="js/app.js"></script>
