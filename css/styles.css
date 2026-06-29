@@ -164,7 +164,10 @@ body {
 
 .preview h1,
 .preview h2,
-.preview h3 {
+.preview h3,
+.preview h4,
+.preview h5,
+.preview h6 {
   margin-top: 16px;
   margin-bottom: 8px;
   color: #d4d4d4;
@@ -172,6 +175,34 @@ body {
 
 .preview p {
   margin-bottom: 12px;
+}
+
+.preview ul,
+.preview ol {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+
+.preview li {
+  margin-bottom: 4px;
+}
+
+.preview li input[type="checkbox"] {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.preview blockquote {
+  border-left: 4px solid #3e3e42;
+  padding-left: 12px;
+  margin: 12px 0;
+  color: #858585;
+}
+
+.preview hr {
+  border: none;
+  border-top: 1px solid #3e3e42;
+  margin: 16px 0;
 }
 
 .preview code {
@@ -187,6 +218,12 @@ body {
   border-radius: 4px;
   overflow-x: auto;
   margin: 12px 0;
+}
+
+.preview pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .preview a {
