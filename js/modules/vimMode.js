@@ -47,22 +47,15 @@ const VimMode = (() => {
       scrollCursorIntoView();
     });
 
-    // Auto-focus editor when clicking on sidepanel container (excluding other inputs)
+    // Auto-focus editor when clicking strictly inside the editor container
     document.addEventListener("click", (e) => {
-      if (e.target.closest('#filename') || e.target.closest('button') || e.target.closest('input')) {
-        return;
-      }
-      if (editor && document.activeElement !== editor) {
-        editor.focus();
+      if (e.target.closest(".editor-container")) {
+        if (editor && document.activeElement !== editor) {
+          editor.focus();
+        }
       }
     });
 
-    // Automatically focus editor when sidepanel window gains focus
-    window.addEventListener("focus", () => {
-      if (editor && document.activeElement !== editor) {
-        editor.focus();
-      }
-    });
 
     // Auto-scroll on movements to keep cursor in view
     editor.addEventListener("keyup", scrollCursorIntoView);
@@ -80,7 +73,7 @@ const VimMode = (() => {
       if (e.altKey) {
         let action = null;
         const code = e.code;
-        
+
         if (code === "KeyK") {
           action = "togglePlayPause";
         } else if (code === "KeyJ") {

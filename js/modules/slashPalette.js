@@ -57,7 +57,7 @@ const SlashPalette = (() => {
 
     // Listen for clicks outside the palette to close it
     document.addEventListener("click", (event) => {
-      if (slashPalette && !slashPalette.contains(event.target)) {
+      if (slashPalette && !slashPalette.classList.contains("hidden") && !slashPalette.contains(event.target)) {
         hidePalette();
       }
     });
