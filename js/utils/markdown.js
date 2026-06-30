@@ -12,38 +12,223 @@ const MarkdownUtils = (() => {
   function markdownToHTML(markdown) {
     if (!markdown) return "";
 
-    // Process code blocks with language
-    let html = markdown.replace(
-      /```(\w+)?\n([\s\S]+?)\n```/g,
-      function (match, language, code) {
-        return `<pre><code class="language-${language || ""}">${escapeHTML(
-          code
-        )}</code></pre>`;
+    const lines = markdown.split(/\r?\n/);
+    const htmlBlocks = [];
+
+    let inCodeBlock = false;
+    let codeBlockLang = "";
+    let codeBlockLines = [];
+
+    // Keep track of open lists using a stack
+    // Each list on the stack is { type: 'ul' | 'ol', indent: number }
+    const listStack = [];
+
+    // Helper to close all currently open lists
+    function closeAllLists() {
+      while (listStack.length > 0) {
+        const popped = listStack.pop();
+        htmlBlocks.push(`</${popped.type}>`);
       }
-    );
+    }
 
-    // Process inline code
-    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Helper to close lists down to a certain indent level
+    function closeListsToIndent(indent) {
+      while (listStack.length > 0 && listStack[listStack.length - 1].indent > indent) {
+        const popped = listStack.pop();
+        htmlBlocks.push(`</${popped.type}>`);
+      }
+    }
 
-    // Process headers
-    html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
-    html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
-    html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+    // Paragraph buffer
+    let paragraphLines = [];
+    function flushParagraph() {
+      if (paragraphLines.length > 0) {
+        const content = paragraphLines.join("\n");
+        htmlBlocks.push(`<p>${parseInline(content)}</p>`);
+        paragraphLines = [];
+      }
+    }
 
-    // Process lists
-    html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
-    html = html.replace(/^(\d+)\. (.+)$/gm, "<li>$2</li>");
-    html = html.replace(/(<li>.*<\/li>\n)+/g, "<ul>$&</ul>");
+    // Blockquote buffer
+    let blockquoteLines = [];
+    function flushBlockquote() {
+      if (blockquoteLines.length > 0) {
+        const blockquoteContent = blockquoteLines.join("\n");
+        // Recursively render blockquote content so it can contain headings, lists, etc.
+        htmlBlocks.push(`<blockquote>${markdownToHTML(blockquoteContent)}</blockquote>`);
+        blockquoteLines = [];
+      }
+    }
 
-    // Process checkboxes
-    html = html.replace(
-      /- \[ \] (.+)$/gm,
-      '<li><input type="checkbox"> $1</li>'
-    );
-    html = html.replace(
-      /- \[x\] (.+)$/gm,
-      '<li><input type="checkbox" checked> $1</li>'
-    );
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // 1. Code Block handling
+      const codeBlockMatch = line.match(/^\s*```(\w*)/);
+
+      if (inCodeBlock) {
+        if (codeBlockMatch) {
+          // End of code block
+          const codeContent = codeBlockLines.join("\n");
+          htmlBlocks.push(`<pre><code class="language-${codeBlockLang}">${escapeHTML(codeContent)}</code></pre>`);
+          codeBlockLines = [];
+          inCodeBlock = false;
+          codeBlockLang = "";
+        } else {
+          codeBlockLines.push(line);
+        }
+        continue;
+      }
+
+      if (codeBlockMatch) {
+        flushParagraph();
+        flushBlockquote();
+        closeAllLists();
+        inCodeBlock = true;
+        codeBlockLang = codeBlockMatch[1] || "";
+        continue;
+      }
+
+      const trimmed = line.trim();
+
+      // 2. Blank line
+      if (trimmed === "") {
+        flushParagraph();
+        flushBlockquote();
+        // Do not close lists on blank lines to allow spaced/loose list items
+        continue;
+      }
+
+      // 3. Headings
+      const headingMatch = line.match(/^(\s*)(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushBlockquote();
+        closeAllLists();
+        const level = headingMatch[2].length;
+        const content = headingMatch[3];
+        htmlBlocks.push(`<h${level}>${parseInline(content)}</h${level}>`);
+        continue;
+      }
+
+      // 4. Horizontal Rules
+      if (/^(?:\s*[-*_]){3,}\s*$/.test(line)) {
+        flushParagraph();
+        flushBlockquote();
+        closeAllLists();
+        htmlBlocks.push("<hr>");
+        continue;
+      }
+
+      // 5. Blockquotes
+      const blockquoteMatch = line.match(/^(\s*)>\s?(.*)$/);
+      if (blockquoteMatch) {
+        flushParagraph();
+        closeAllLists();
+        const content = blockquoteMatch[2];
+        blockquoteLines.push(content);
+        continue;
+      }
+
+      // Since this is not a blockquote line, flush any active blockquote
+      flushBlockquote();
+
+      // 6. List items
+      const ulMatch = line.match(/^(\s*)([-*+])\s+(.*)$/);
+      const olMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+
+      if (ulMatch || olMatch) {
+        flushParagraph();
+
+        let type, indent, content;
+        if (ulMatch) {
+          type = "ul";
+          indent = ulMatch[1].replace(/\t/g, "    ").length;
+          content = ulMatch[3];
+        } else {
+          type = "ol";
+          indent = olMatch[1].replace(/\t/g, "    ").length;
+          content = olMatch[3];
+        }
+
+        if (listStack.length === 0) {
+          listStack.push({ type, indent });
+          htmlBlocks.push(`<${type}>`);
+        } else {
+          const top = listStack[listStack.length - 1];
+          if (indent > top.indent) {
+            // Nested list
+            listStack.push({ type, indent });
+            htmlBlocks.push(`<${type}>`);
+          } else if (indent < top.indent) {
+            closeListsToIndent(indent);
+            if (listStack.length === 0) {
+              listStack.push({ type, indent });
+              htmlBlocks.push(`<${type}>`);
+            } else {
+              const currentTop = listStack[listStack.length - 1];
+              if (indent === currentTop.indent && type !== currentTop.type) {
+                // Change list type at the same indentation level
+                listStack.pop();
+                htmlBlocks.push(`</${currentTop.type}>`);
+                listStack.push({ type, indent });
+                htmlBlocks.push(`<${type}>`);
+              }
+            }
+          } else if (type !== top.type) {
+            // Indentation matches but list type changed
+            listStack.pop();
+            htmlBlocks.push(`</${top.type}>`);
+            listStack.push({ type, indent });
+            htmlBlocks.push(`<${type}>`);
+          }
+        }
+
+        // Render list item content
+        if (type === "ul") {
+          const cbMatch = content.match(/^\[([ xX])\]\s+(.*)$/);
+          if (cbMatch) {
+            const checked = cbMatch[1].toLowerCase() === "x" ? " checked" : "";
+            htmlBlocks.push(`<li><input type="checkbox"${checked}> ${parseInline(cbMatch[2])}</li>`);
+          } else {
+            htmlBlocks.push(`<li>${parseInline(content)}</li>`);
+          }
+        } else {
+          htmlBlocks.push(`<li>${parseInline(content)}</li>`);
+        }
+        continue;
+      }
+
+      // 7. Regular paragraph line
+      // Close any active lists when entering a regular paragraph block
+      closeAllLists();
+      paragraphLines.push(line);
+    }
+
+    // Clean up remaining buffers at the end of the document
+    flushParagraph();
+    flushBlockquote();
+    closeAllLists();
+
+    return htmlBlocks.join("\n");
+  }
+
+  /**
+   * Parse inline Markdown syntax (bold, italic, code, links, images)
+   * @param {string} text - Raw text content
+   * @returns {string} HTML representation with inline tags
+   */
+  function parseInline(text) {
+    if (!text) return "";
+    let html = text;
+
+    // Stash inline code to prevent bold/italic replacements inside code tags
+    const placeholders = [];
+    html = html.replace(/`([^`]+)`/g, (_, code) => {
+      const id = `__INLINE_CODE_${placeholders.length}__`;
+      placeholders.push({ id, html: `<code>${escapeHTML(code)}</code>` });
+      return id;
+    });
 
     // Process bold and italic
     html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -53,9 +238,13 @@ const MarkdownUtils = (() => {
     html = html.replace(/!\[([^\]]+)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 
-    // Process paragraphs (must come last)
-    html = html.replace(/^([^<].*[^>])$/gm, "<p>$1</p>");
-    html = html.replace(/<\/p>\n<p>/g, "</p><p>");
+    // Restore stashed inline code segments
+    for (const placeholder of placeholders) {
+      html = html.replace(placeholder.id, placeholder.html);
+    }
+
+    // Process hard line breaks (two spaces or a backslash at end of line)
+    html = html.replace(/(?: {2,}|\\)$/gm, "<br>");
 
     return html;
   }

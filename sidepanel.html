@@ -6,123 +6,125 @@
   </head>
   <body>
     <div class="header">
-      <div style="display: flex; flex-direction: column; gap: 6px">
+      <div class="title-row">
         <input
           type="text"
           id="filename"
           class="filename-input"
-          placeholder="note-name"
+          placeholder="notes"
           value="notes" />
+
+        <button
+          id="screenshotBtn"
+          class="btn btn-primary btn-screenshot"
+          title="Capture screenshot with timestamp">
+          <!-- camera SVG -->
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true">
+            <path
+              d="M3 7h3l2-2h8l2 2h3v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round" />
+            <circle cx="12" cy="13" r="3" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+          <span class="sr-only">Screenshot</span>
+          <span class="kbd">Opt+O</span>
+        </button>
       </div>
 
-      <button
-        id="screenshotBtn"
-        class="btn btn-primary"
-        title="Capture screenshot with timestamp">
-        <!-- camera SVG -->
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true">
-          <path
-            d="M3 7h3l2-2h8l2 2h3v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z"
-            stroke="#d4d4d4"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round" />
-          <circle cx="12" cy="13" r="3" stroke="#d4d4d4" stroke-width="1.2" />
-        </svg>
-        <span class="sr-only">Screenshot</span>
-        <span class="kbd">Opt+O</span>
-      </button>
-      <!-- Images button removed from header. Images control lives below the status area. -->
+      <div class="toolbar">
+        <button id="toggleView" class="btn btn-secondary" title="Toggle preview">
+          <!-- eye SVG -->
+          Preview
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true">
+            <path
+              d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round" />
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+          <span class="sr-only">Preview</span>
+        </button>
 
-      <button id="toggleView" class="btn btn-secondary" title="Toggle preview">
-        <!-- eye SVG -->
-        Preview
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true">
-          <path
-            d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"
-            stroke="#d4d4d4"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round" />
-          <circle cx="12" cy="12" r="3" stroke="#d4d4d4" stroke-width="1.2" />
-        </svg>
-        <span class="sr-only">Preview</span>
-      </button>
+        <button id="clearBtn" class="btn btn-secondary" title="Clear notes">
+          <!-- trash SVG -->
+          Clear
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true">
+            <path
+              d="M3 6h18"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round" />
+            <path
+              d="M8 6V4h8v2"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round" />
+            <path
+              d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+          <span class="sr-only">Clear</span>
+        </button>
 
-      <button id="clearBtn" class="btn btn-secondary" title="Clear notes">
-        <!-- trash SVG -->
-        Clear
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true">
-          <path
-            d="M3 6h18"
-            stroke="#d4d4d4"
-            stroke-width="1.2"
-            stroke-linecap="round" />
-          <path
-            d="M8 6V4h8v2"
-            stroke="#d4d4d4"
-            stroke-width="1.2"
-            stroke-linecap="round" />
-          <path
-            d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-            stroke="#d4d4d4"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round" />
-        </svg>
-        <span class="sr-only">Clear</span>
-      </button>
-      <button id="exportBtn" class="btn btn-secondary" title="Export notes">
-        Export
-        <svg
-          class="w-6 h-6 text-gray-800 dark:text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          fill="none"
-          viewBox="0 0 24 24">
-          <path
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M4 15v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2M12 4v12m0-12 4 4m-4-4L8 8" />
-        </svg>
-      </button>
-      <button
-        id="openFileBtn"
-        class="btn btn-secondary"
-        title="Open markdown file">
-        Open File
-        <svg
-          class="w-6 h-6 text-gray-800 dark:text-white"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          fill="none"
-          viewBox="0 0 24 24">
-          <path
-            stroke="currentColor"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M3 19V6a1 1 0 0 1 1-1h4.032a1 1 0 0 1 .768.36l1.9 2.28a1 1 0 0 0 .768.36H16a1 1 0 0 1 1 1v1M3 19l3-8h15l-3 8H3Z" />
-        </svg>
-      </button>
+        <button id="exportBtn" class="btn btn-secondary" title="Export notes">
+          Export
+          <svg
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            viewBox="0 0 24 24">
+            <path
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4 15v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2M12 4v12m0-12 4 4m-4-4L8 8" />
+          </svg>
+        </button>
+
+        <button
+          id="openFileBtn"
+          class="btn btn-secondary"
+          title="Open markdown file">
+          Open File
+          <svg
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            viewBox="0 0 24 24">
+            <path
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.2"
+              d="M3 19V6a1 1 0 0 1 1-1h4.032a1 1 0 0 1 .768.36l1.9 2.28a1 1 0 0 0 .768.36H16a1 1 0 0 1 1 1v1M3 19l3-8h15l-3 8H3Z" />
+          </svg>
+        </button>
+      </div>
+
       <!-- Hidden file input for opening markdown files -->
       <input
         type="file"
@@ -146,8 +148,9 @@
 
     <div id="preview" class="preview hidden"></div>
 
-    <div class="status">
+    <div class="status" style="display: flex; justify-content: space-between; align-items: center;">
       <span id="statusText">Ready</span>
+      <span id="vimModeBadge" class="vim-badge badge-insert">-- INSERT --</span>
     </div>
 
     <!-- Compact Images control below status -->
@@ -178,6 +181,7 @@
 
     <!-- External libraries -->
     <script src="lib/jszip.min.js"></script>
+    <script src="lib/vim.js"></script>
 
     <!-- Utility modules -->
     <script src="js/utils/dom.js"></script>
@@ -193,6 +197,7 @@
     <script src="js/modules/screenshots.js"></script>
     <script src="js/modules/slashPalette.js"></script>
     <script src="js/modules/shortcutHelper.js"></script>
+    <script src="js/modules/vimMode.js"></script>
 
     <!-- Main application -->
     <script src="js/app.js"></script>

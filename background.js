@@ -3,7 +3,7 @@ chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ windowId: tab.windowId });
 });
 
-// Listen for messages from content script
+// Listen for messages from content script or sidepanel
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "openSidePanel") {
     chrome.sidePanel.open({ windowId: sender.tab.windowId });
@@ -11,8 +11,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
-// Handle keyboard command to capture screenshot (defined in manifest.commands)
-chrome.commands.onCommand.addListener(async (command) => {
+// Handle keyboard command to capture screenshot
+chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "capture-screenshot") return;
   try {
     // Find active tab

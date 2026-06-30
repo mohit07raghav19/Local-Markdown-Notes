@@ -1,6 +1,6 @@
 # Local Markdown Notes
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![Manifest V3](https://img.shields.io/badge/manifest-v3-orange.svg)
 ![Privacy](https://img.shields.io/badge/privacy-focused-green.svg)
 ![Offline](https://img.shields.io/badge/offline--first-yes-orange.svg)
@@ -10,16 +10,41 @@ A lightweight browser extension for taking markdown notes with screenshots and Y
 
 **Supported Browsers**: Chrome, Brave, Edge, and other Chromium-based browsers with sidebar support.
 
+## 🎥 Demo
+
+Here is a quick walkthrough showing how to use the extension:
+
+https://github.com/user-attachments/assets/62fdc31e-19c1-4cab-94f6-df78b15ea8ab
+
+
 ## ✨ Features
 
-- **📝 Markdown Editor** – Edit markdown with live preview
-- **📸 Screenshot Capture** – One-click screenshots with `Alt+O` shortcut
-- **🎥 YouTube Timestamps** – Auto-capture video time when taking screenshots
-- **💾 Private & Local** – All notes stored locally on your device, no cloud sync
-- **🖼️ Image Management** – Drag-and-drop image support
-- **📥 Export Notes** – Export as ZIP with embedded images
-- **🎨 Dark/Light Theme** – Adapts to your system preferences
-- **⚡ Works Offline** – Full functionality without internet connection
+### 📝 Markdown Editor & Preview
+- **Live Preview Toggle**: Instantly switch between the code editor view and the rendered preview to visualize your formatted notes.
+- **Slash Commands (`/`)**: Type `/` inside the editor to trigger a snippet palette for quick insertions (headings, bullet points, numbered lists, tables, checklists, code blocks, or current date-time).
+- **Vim Mode Integration**: Keyboard-centric, distraction-free editing with full support for Vim keybindings. A mode badge at the bottom of the editor keeps track of your current mode (`INSERT`, `NORMAL`, `VISUAL`).
+
+### 📸 Smart Screenshot Capture
+- **One-Click Snapshots**: Instantly capture screenshots using the **`Opt+O`** (macOS) / **`Alt+O`** (Windows/Linux) shortcut or the camera button in the sidepanel.
+- **Auto-Reference Images**: Screenshots are saved locally in the browser's persistent storage and are instantly appended into your Markdown notes.
+- **Drag-and-Drop / Clipboard support**: Drag and drop external images or paste them directly from your clipboard right into the editor.
+
+### 🎥 YouTube Smart Timestamps
+- **Context-Aware Timestamps**: Taking a screenshot while a YouTube video is open in the active tab automatically captures the exact video playback timestamp.
+- **Interactive Video Anchors**: Click on any captured timestamp link in your notes (e.g., `[02:45]`) to immediately jump back to that exact second in the active YouTube video.
+- **Keyboard Playback Controls**: Control the active YouTube video directly from the editor without switching windows:
+  - `Alt+K` – Play / Pause
+  - `Alt+J` – Rewind 10 seconds
+  - `Alt+L` – Fast-Forward 10 seconds
+
+### 🖼️ Local Image Management
+- **Media Hub**: Expand the **Images** panel at the bottom to browse, preview, and manage all captured screenshots.
+- **Easy Cleanups**: Delete unused screenshots or copy local image reference paths with a single click.
+
+### 💾 Local-First & Private
+- **Zero Cloud Tracking**: All notes and image data are stored 100% locally on your machine using Chrome's persistent storage APIs. No cloud, no analytics, no external servers.
+- **Full Offline Capability**: Take notes, format markdown, and manage images without needing an internet connection.
+- **ZIP Export**: Download all your notes and referenced images packed together in a clean `.zip` archive for easy local backups.
 
 ## 🚀 Quick Start
 
@@ -51,23 +76,6 @@ Go to **`chrome://extensions/shortcuts`** to set your preferred screenshot short
    - **Any webpage**: Capture the full page or a specific region
 4. **Organize images** – Manage your captured images in the sidebar
 5. **Export & backup** – Click the export button to download your notes as a ZIP file
-
-## 🏗️ Project Structure
-
-```
-├── manifest.json          # Extension configuration
-├── background.js          # Service worker handling shortcuts
-├── content.js             # Page interaction for timestamps
-├── sidepanel.html         # Main user interface
-├── js/
-│   ├── app.js            # App entry point
-│   ├── modules/          # Feature modules (editor, storage, etc.)
-│   └── utils/            # Utility functions
-├── css/
-│   └── styles.css        # Styling & themes
-└── lib/
-    └── jszip.min.js      # ZIP export functionality
-```
 
 ## 💡 Key Highlights
 

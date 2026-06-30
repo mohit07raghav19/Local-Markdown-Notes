@@ -571,8 +571,8 @@ npm run package
 ```javascript
 // Semantic versioning
 {
-  "version": "1.0.0",
-  "version_name": "1.0.0 - Initial Release"
+  "version": "1.1.0",
+  "version_name": "1.1.0 - Features & Improvements"
 }
 
 // Automated version bumping
